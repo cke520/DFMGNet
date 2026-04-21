@@ -8,7 +8,7 @@ parser.add_argument('--trainsize', type=int, default=384, help='training dataset
 parser.add_argument('--clip', type=float, default=0.5, help='gradient clipping margin')
 parser.add_argument('--decay_rate', type=float, default=0.1, help='decay rate of learning rate')
 parser.add_argument('--decay_epoch', type=int, default=100, help='every n epochs decay learning rate')
-parser.add_argument('--load', type=str, default='../pretrain/pvt_v2_b5.pth', help='train from checkpoints')
+parser.add_argument('--load', type=str, default='../pretrain/pvt_v2_b2.pth', help='train from checkpoints')
 parser.add_argument('--load_pre', type=str, default='./checkpoints/ckpt/DFMG_epoch_best.pth', help='train from checkpoints')
 parser.add_argument('--gpu_id', type=str, default='0', help='train use gpu')
 parser.add_argument('--rgb_root', type=str, default='../Data/COD/train/RGB/', help='the training rgb images root')
