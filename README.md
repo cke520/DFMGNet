@@ -1,134 +1,103 @@
-# DFMGNet
 
-Official PyTorch implementation of **DFMGNet: RGB-D Camouflaged Object Detection With Mamba Fusion and Dynamic Frequency-aware Refinement**.
+```markdown
+<div align="center">
 
-## Highlights
+# 🦎 DFMGNet: RGB-D Camouflaged Object Detection With Mamba Fusion and Dynamic Frequency-aware Refinement
 
-- **MGAF**: a Mamba-Guided Attention Fusion module for adaptive RGB-D cross-modal interaction.
-- **FAME**: a Frequency-Aware Multi-scale Enhancement module for dynamic high-frequency refinement.
-- **Iterative decoder**: progressively restores object structures and improves boundary quality.
-- Supports **RGB-D COD** benchmarks including **CAMO**, **CHAMELEON**, **COD10K**, and **NC4K**.
+<!-- 项目徽章 -->
+![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)
+![PyTorch 1.12+](https://img.shields.io/badge/PyTorch-1.12%2B-ee4c2c.svg)
+![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)
 
-## Framework Overview
+**[Paper (Under Review)](#)** | **[Baidu Netdisk](#pretrained-models)** 
 
-DFMGNet follows a dual-branch RGB-D pipeline. RGB images and depth maps are first encoded by two PVT backbones, then fused by MGAF, refined by FAME in the frequency domain, and finally decoded to generate the camouflaged object prediction and auxiliary edge prediction.
+Official PyTorch implementation of **DFMGNet**. A novel dual-branch architecture for RGB-D Camouflaged Object Detection.
 
-## Repository Structure
+</div>
 
-```text
-DFMGNet/
-├── models/
-│   ├── DFMG.py          # Main network definition
-│   ├── pvtv2.py         # PVTv2 backbone
-│   └── vmamba.py        # Mamba-related modules
-├── tools/
-│   ├── data.py          # Data loading and augmentation
-│   ├── logger.py
-│   ├── lr_scheduler.py
-│   └── utils.py
-├── pytorch_iou/
-│   └── __init__.py      # IoU loss
-├── train.py             # Training script
-├── test.py              # Inference script
-├── speed.py             # Params / FLOPs / FPS benchmarking
-├── options.py           # Training options
-├── LICENSE
-└── README.md
-```
+<br>
 
-## Requirements
+## 🚀 Highlights
 
-Recommended environment:
+- 🐍 **MGAF (Mamba-Guided Attention Fusion):** An innovative module for adaptive RGB-D cross-modal interaction.
+- 🌊 **FAME (Frequency-Aware Multi-scale Enhancement):** Dynamic high-frequency refinement in the frequency domain.
+- 🔄 **Iterative Decoder:** Progressively restores object structures and significantly improves boundary quality.
+- 🏆 **Comprehensive Evaluation:** Achieves state-of-the-art performance across major RGB-D COD benchmarks (**CAMO, CHAMELEON, COD10K, NC4K**).
 
-- Python 3.8+
-- PyTorch 1.12+ / 2.x
-- CUDA-enabled GPU
+---
 
-Main dependencies:
+## 🖼️ Framework Overview
 
-```bash
-torch
-torchvision
-numpy
-opencv-python
-Pillow
-tqdm
-tensorboardX
-einops
-timm
-matplotlib
-onnx
-fvcore    # optional, for profiling
-thop      # optional, for profiling
-ptflops   # optional, for profiling
-termcolor
-```
+<p align="center">
+  <!-- 请在此处替换为你的网络结构图路径 -->
+  <img src="figs/overview.jpg" alt="DFMGNet Architecture" width="90%">
+</p>
 
-You can install the common dependencies with:
+> **DFMGNet** follows a dual-branch RGB-D pipeline. RGB images and depth maps are first encoded by two PVT backbones, then fused by **MGAF**, refined by **FAME** in the frequency domain, and finally decoded iteratively to generate accurate camouflaged object predictions and auxiliary edge maps.
+
+---
+
+## 📊 Qualitative Results
+
+<p align="center">
+  <!-- 请在此处替换为你的可视化结果对比图路径 -->
+  <img src="figs/results.jpg" alt="Visual Results" width="90%">
+</p>
+
+> Visual comparison of DFMGNet against other state-of-the-art methods. Our model successfully captures accurate object boundaries even in highly challenging camouflaged scenarios.
+
+---
+
+## ⚙️ Setup & Requirements
+
+**Environment:** Python 3.8+ | PyTorch 1.12+ | CUDA-enabled GPU
+
+Install the required dependencies easily via pip:
 
 ```bash
 pip install torch torchvision numpy opencv-python pillow tqdm tensorboardX einops timm matplotlib onnx termcolor
-```
-
-Optional profiling packages:
-
-```bash
+# Optional for profiling
 pip install fvcore thop ptflops
 ```
 
-## Dataset Preparation
+---
 
-The code expects the following directory structure:
+## 📂 Dataset Preparation
+
+Please organize your datasets as follows. Note that the training set requires `RGB`, `depth`, `GT`, and `Edge` maps, while testing sets only require `RGB`, `depth`, and `GT`.
 
 ```text
 Data/
 └── COD/
-    ├── train/
-    │   ├── RGB/
-    │   ├── depth/
-    │   ├── GT/
-    │   └── Edge/
+    ├── train/           # Contains: RGB/, depth/, GT/, Edge/
     └── test/
-        ├── CAMO/
-        │   ├── RGB/
-        │   ├── depth/
-        │   ├── GT/
-        │   └── Edge/
-        ├── CHAMELEON/
-        │   ├── RGB/
-        │   ├── depth/
-        │   └── GT/
-        ├── COD10K/
-        │   ├── RGB/
-        │   ├── depth/
-        │   └── GT/
-        └── NC4K/
-            ├── RGB/
-            ├── depth/
-            └── GT/
+        ├── CAMO/        # Contains: RGB/, depth/, GT/
+        ├── CHAMELEON/   # Contains: RGB/, depth/, GT/
+        ├── COD10K/      # Contains: RGB/, depth/, GT/
+        └── NC4K/        # Contains: RGB/, depth/, GT/
 ```
+*💡 **Note:** The current implementation assumes grayscale depth maps and automatically repeats them to 3 channels during loading.*
 
-### Notes
+---
 
-- Training uses **RGB**, **depth**, **GT**, and **Edge** maps.
-- Testing in `test.py` requires **RGB**, **depth**, and **GT** folders for each dataset.
-- File names across RGB, depth, GT, and edge maps should match.
-- The current implementation assumes grayscale depth maps and repeats them to 3 channels before feeding them into the model.
+## 📦 Pretrained Models
 
-## Training
+You can download our code package and pretrained models via Baidu Netdisk:
 
-Before training, modify the dataset and checkpoint paths in `options.py` if needed.
+| Resource | Link | Extraction Code |
+| :--- | :--- | :---: |
+| 🗂️ **Code & Result Pkg** (`final.zip`) | [Baidu Netdisk](https://pan.baidu.com/s/1gJN_ac6Lnd0KwyqyoTuVLQ?pwd=2025) | `2025` |
+| 🧠 **Pretrained Model** (`DFMG_epoch_best.pth`) | [Baidu Netdisk](https://pan.baidu.com/s/165KLBru6dYmhwBZBScvX2g?pwd=2025) | `2025` |
 
-Default important options:
+**Placement:**
+- Put the pretrained model at: `./checkpoints/ckpt/DFMG_epoch_best.pth`
+- Put the PVT backbone weights at: `./pretrain/pvt_v2_b5.pth`
 
-- `--epoch`: number of epochs
-- `--lr`: learning rate
-- `--batchsize`: training batch size
-- `--trainsize`: training image size
-- `--load`: path to pre-trained PVT weights
-- `--save_path`: directory to save checkpoints and logs
+---
 
-Example:
+## 🏃 Training
+
+Modify dataset and checkpoint paths in `options.py` as needed, then run:
 
 ```bash
 python train.py \
@@ -141,116 +110,19 @@ python train.py \
   --depth_root ../Data/COD/train/depth/ \
   --gt_root ../Data/COD/train/GT/ \
   --edge_root ../Data/COD/train/Edge/ \
-  --test_rgb_root ../Data/COD/test/CAMO/RGB/ \
-  --test_depth_root ../Data/COD/test/CAMO/depth/ \
-  --test_gt_root ../Data/COD/test/CAMO/GT/ \
   --save_path ./checkpoints/ckpt/
 ```
 
-## Inference
+---
 
-Place the trained model at:
+## 🔍 Inference & Evaluation
 
-```text
-./checkpoints/ckpt/DFMG_epoch_best.pth
-```
-
-Then run:
+To generate prediction maps on the benchmark datasets, simply run:
 
 ```bash
 python test.py --gpu_id 0 --test_path ../Data/COD/test/
 ```
 
-Prediction maps will be saved to:
+Prediction maps will be saved sequentially to `./final/COD_result/`.
 
-```text
-./final/COD_result/
-├── CAMO/
-├── CHAMELEON/
-├── COD10K/
-└── NC4K/
-```
 
-Auxiliary edge predictions are saved under each dataset's `edge/` subfolder.
-
-## Pretrained Model and Code Package
-
-### Baidu Netdisk
-
-- **Code / result package (`final.zip`)**  
-  Link: [https://pan.baidu.com/s/1gJN_ac6Lnd0KwyqyoTuVLQ?pwd=2025](https://pan.baidu.com/s/1gJN_ac6Lnd0KwyqyoTuVLQ?pwd=2025)  
-  Extraction code: `2025`
-
-- **Pretrained model (`DFMG_epoch_best.pth`)**  
-  Link: [https://pan.baidu.com/s/165KLBru6dYmhwBZBScvX2g?pwd=2025](https://pan.baidu.com/s/165KLBru6dYmhwBZBScvX2g?pwd=2025)  
-  Extraction code: `2025`
-
-### Placement
-
-Download the pretrained checkpoint and put it in:
-
-```text
-./checkpoints/ckpt/DFMG_epoch_best.pth
-```
-
-If you use pre-trained PVT weights for training, place them in a path such as:
-
-```text
-./pretrain/pvt_v2_b5.pth
-```
-
-and update the `--load` argument accordingly.
-
-## Evaluation and Benchmarking
-
-The paper reports results on four benchmark datasets:
-
-- CHAMELEON
-- COD10K
-- NC4K
-- CAMO
-
-Evaluation metrics include:
-
-- **M** (Mean Absolute Error, lower is better)
-- **F<sub>\beta</sub><sup>w</sup>** (Weighted F-measure, higher is better)
-- **E<sub>\phi</sub>** (Mean enhanced-alignment measure, higher is better)
-- **S<sub>\alpha</sub>** (Structure measure, higher is better)
-
-You can also profile model complexity with:
-
-```bash
-python speed.py
-```
-
-## Main Results
-
-The paper reports that DFMGNet achieves strong performance across four RGB-D COD benchmarks. In particular, the **DFMGNet-b5** variant reaches:
-
-- **CHAMELEON**: M = 1.6, F<sub>\beta</sub><sup>w</sup> = 92.8, E<sub>\phi</sub> = 97.7, S<sub>\alpha</sub> = 94.5
-- **COD10K**: M = 1.9, F<sub>\beta</sub><sup>w</sup> = 81.6, E<sub>\phi</sub> = 93.7, S<sub>\alpha</sub> = 88.2
-- **NC4K**: M = 2.9, F<sub>\beta</sub><sup>w</sup> = 85.8, E<sub>\phi</sub> = 94.0, S<sub>\alpha</sub> = 89.5
-- **CAMO**: M = 3.7, F<sub>\beta</sub><sup>w</sup> = 86.8, E<sub>\phi</sub> = 94.5, S<sub>\alpha</sub> = 89.7
-
-The efficiency analysis in the paper also reports that **DFMGNet-b2** achieves **114.33M** parameters, **277.37G** FLOPs, and **16.16 FPS**, while **DFMGNet-b5** achieves **227.52M** parameters, **356.74G** FLOPs, and **8.44 FPS**.
-
-## Citation
-
-If you find this repository useful, please cite:
-
-```bibtex
-@article{chen2025dfmgnet,
-  title={RGB-D Camouflaged Object Detection With Mamba Fusion and Dynamic Frequency-aware Refinement},
-  author={Chen, Ke and Li, Chengxin and Jiang, Guangqi and Zhou, Ling and Liu, Yi and Xu, Shoukun and Han, Jungong},
-  journal={Under review / to be updated},
-  year={2025}
-}
-```
-
-## Acknowledgements
-
-This project builds upon the PyTorch ecosystem and related open-source vision backbones and toolkits, including PVT/PVTv2, Mamba-style modules, and standard COD evaluation practices.
-
-## License
-
-This repository is released under the **Apache-2.0 License**. See the `LICENSE` file for details.
