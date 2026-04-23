@@ -1,10 +1,5 @@
-
-```markdown
-<div align="center">
-
 # 🦎 DFMGNet: RGB-D Camouflaged Object Detection With Mamba Fusion and Dynamic Frequency-aware Refinement
 
-<!-- 项目徽章 -->
 ![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)
 ![PyTorch 1.12+](https://img.shields.io/badge/PyTorch-1.12%2B-ee4c2c.svg)
 ![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)
@@ -13,9 +8,6 @@
 
 Official PyTorch implementation of **DFMGNet**. A novel dual-branch architecture for RGB-D Camouflaged Object Detection.
 
-</div>
-
-<br>
 
 ## 🚀 Highlights
 
@@ -41,7 +33,7 @@ Official PyTorch implementation of **DFMGNet**. A novel dual-branch architecture
 
 <p align="center">
   <!-- 请在此处替换为你的可视化结果对比图路径 -->
-  <img src="figs/results.jpg" alt="Visual Results" width="90%">
+  <img src="figs/result.jpg" alt="Visual Results" width="90%">
 </p>
 
 > Visual comparison of DFMGNet against other state-of-the-art methods. Our model successfully captures accurate object boundaries even in highly challenging camouflaged scenarios.
