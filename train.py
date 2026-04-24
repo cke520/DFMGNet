@@ -102,10 +102,10 @@ def train(train_loader, model, optimizer, epoch, save_path):
                     p, pg, h = model(images.float(), depth.float())
 
                 # Loss computation remains in mixed precision
-                cam_loss = CE(p, gts) + IOU(pg, gts)
+                cam_loss = 0.7 * CE(p, gts) + 0.3 * IOU(pg, gts)
                 edge_loss = CE(h, edge)
                 consistency_loss = F.mse_loss(torch.sigmoid(p), torch.sigmoid(h))  # 建议对h也用sigmoid
-                loss = cam_loss + edge_loss + consistency_loss
+                loss = cam_loss + 0.5 * edge_loss + 0.1 * consistency_loss
 
             # Gradient accumulation
             scaler.scale(loss / accum_steps).backward()
