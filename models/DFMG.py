@@ -7,6 +7,7 @@ from torch.fft import fftn, ifftn
 from torchvision.ops import DeformConv2d
 from .vmamba import CrossMambaFusion_SS2D_SSM
 from einops import rearrange
+# --- 导入新的 Backbone ---
 from models.pvtv2 import pvt_v2_b5
 import torch.nn.functional as F
 import os
@@ -301,35 +302,61 @@ class IterativeDecoder(nn.Module):
 
     def forward(self, f1, f2, f3, f4):
         # f1=1024, f2=640, f3=256, f4=128
+
+        # =========================
         # 第一阶段解码
+        # =========================
         x = self.f1_adapter(f1)
+
         x_up1 = self.up_stage1(x)
         out1 = torch.cat([x_up1, f2], dim=1)  # 512 + 640 = 1152
 
         x_up2 = self.up_stage2(x_up1)
         out2 = torch.cat([x_up2, f3], dim=1)  # 256 + 256 = 512
 
-        x_up3 = F.interpolate(x_up2, scale_factor=2, mode='bilinear', align_corners=False)
+        x_up3 = F.interpolate(
+            x_up2,
+            size=f4.shape[-2:],
+            mode='bilinear',
+            align_corners=False
+        )
+
         end_fuse1_cat = torch.cat([x_up3, f4], dim=1)  # 256 + 128 = 384
         end_fuse1 = self.fusion1_conv(end_fuse1_cat)  # -> 256
 
+        # =========================
         # 第二阶段解码
-        d2_in = self.reduce_1152_to_512(out1)
-        d2_up = self.up_stage2(d2_in)
+        # =========================
+        d2_in = self.reduce_1152_to_512(out1)  # -> 512
 
-        d3_in_cat = torch.cat([d2_up, f3], dim=1)  # 256 + 256 = 512.
-        d3_feat = self.reduce_768_to_256(d3_in_cat)
+        d2_up = self.up_stage2(d2_in)  # -> 256
+        d3_in_cat = torch.cat([d2_up, f3], dim=1)  # 256 + 256 = 512
+        d3_feat = self.reduce_768_to_256(d3_in_cat)  # -> 256
 
-        d3_up = F.interpolate(d3_feat, scale_factor=2, mode='bilinear', align_corners=False)
-        end_fuse = torch.cat([d3_up, end_fuse1], dim=1)  # 256 + 256 = 512. It should be 768.
-        # There's a mismatch in the original decoder logic. The most likely intended fusion:
-        # We assume the second pass fusion should also be 768 channels.
+        d3_up = F.interpolate(
+            d3_feat,
+            size=end_fuse1.shape[-2:],
+            mode='bilinear',
+            align_corners=False
+        )  # -> 256
 
-        # Let's use a simplified and robust FPN-like path which is less error-prone.
+        # 关键改动：
+        # 把原本被丢弃的 d3_up 注入 end_fuse1，
+        # 不改变 fusion_conv 的输入通道数。
+        end_fuse1_refined = end_fuse1 + d3_up  # 256
+
+        d2_in_up = F.interpolate(
+            d2_in,
+            size=end_fuse1_refined.shape[-2:],
+            mode='bilinear',
+            align_corners=False
+        )  # -> 512
+
         end_fuse = self.fusion_conv(
-            torch.cat([F.interpolate(d2_in, scale_factor=4, mode='bilinear', align_corners=False), end_fuse1], dim=1))
+            torch.cat([d2_in_up, end_fuse1_refined], dim=1)
+        )  # 512 + 256 = 768 -> 256
 
-        return end_fuse, end_fuse1
+        return end_fuse, end_fuse1_refined
 
 
 class SELayer(nn.Module):
