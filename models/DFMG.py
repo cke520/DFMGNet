@@ -8,7 +8,7 @@ from torchvision.ops import DeformConv2d
 from .vmamba import CrossMambaFusion_SS2D_SSM
 from einops import rearrange
 # --- 导入新的 Backbone ---
-from models.pvtv2 import pvt_v2_b5
+from models.pvtv2 import pvt_v2_b5, pvt_v2_b2
 import torch.nn.functional as F
 import os
 import onnx
@@ -263,102 +263,6 @@ class FAME(nn.Module):
         return low_mask / total, high_mask / total
 
 
-class IterativeDecoder(nn.Module):
-    # --- 使用原始的、未经修改的 IterativeDecoder ---
-    def __init__(self):
-        super(IterativeDecoder, self).__init__()
-        self.f1_adapter = nn.Sequential(
-            nn.Conv2d(1024, 1024, 1), nn.BatchNorm2d(1024), nn.ReLU(),
-            nn.Conv2d(1024, 1024, 1), nn.BatchNorm2d(1024), nn.ReLU()
-        )
-        self.up_stage1 = nn.Sequential(
-            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1, output_padding=1),
-            nn.BatchNorm2d(512), nn.ReLU()
-        )
-        self.up_stage2 = nn.Sequential(
-            nn.ConvTranspose2d(512, 256, kernel_size=3, stride=2, padding=1, output_padding=1),
-            nn.BatchNorm2d(256), nn.ReLU()
-        )
-        # 输入: up_stage1(512) + f2(640) = 1152
-        self.reduce_1152_to_512 = nn.Sequential(
-            nn.Conv2d(1152, 1024, 1), nn.BatchNorm2d(1024), nn.ReLU(),
-            nn.Conv2d(1024, 512, 1), nn.BatchNorm2d(512), nn.ReLU()
-        )
-        # 输入: up_stage2(256) + f3(256) = 512
-        self.reduce_768_to_256 = nn.Sequential(  # 原始命名可能不匹配，但层结构是通用的
-            nn.Conv2d(512, 512, 1), nn.BatchNorm2d(512), nn.ReLU(),
-            nn.Conv2d(512, 256, 1), nn.BatchNorm2d(256), nn.ReLU()
-        )
-        # 输入: interp(up_stage2(256)) + f4(128) = 384
-        self.fusion1_conv = nn.Sequential(
-            SELayer(384), nn.Conv2d(384, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(),
-            nn.Conv2d(256, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU()
-        )
-        # 输入: interp(reduce(512)) + end_fuse1(256) = 768
-        self.fusion_conv = nn.Sequential(
-            SELayer(768), nn.Conv2d(768, 512, 3, padding=1), nn.BatchNorm2d(512), nn.ReLU(),
-            nn.Conv2d(512, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU()
-        )
-
-    def forward(self, f1, f2, f3, f4):
-        # f1=1024, f2=640, f3=256, f4=128
-
-        # =========================
-        # 第一阶段解码
-        # =========================
-        x = self.f1_adapter(f1)
-
-        x_up1 = self.up_stage1(x)
-        out1 = torch.cat([x_up1, f2], dim=1)  # 512 + 640 = 1152
-
-        x_up2 = self.up_stage2(x_up1)
-        out2 = torch.cat([x_up2, f3], dim=1)  # 256 + 256 = 512
-
-        x_up3 = F.interpolate(
-            x_up2,
-            size=f4.shape[-2:],
-            mode='bilinear',
-            align_corners=False
-        )
-
-        end_fuse1_cat = torch.cat([x_up3, f4], dim=1)  # 256 + 128 = 384
-        end_fuse1 = self.fusion1_conv(end_fuse1_cat)  # -> 256
-
-        # =========================
-        # 第二阶段解码
-        # =========================
-        d2_in = self.reduce_1152_to_512(out1)  # -> 512
-
-        d2_up = self.up_stage2(d2_in)  # -> 256
-        d3_in_cat = torch.cat([d2_up, f3], dim=1)  # 256 + 256 = 512
-        d3_feat = self.reduce_768_to_256(d3_in_cat)  # -> 256
-
-        d3_up = F.interpolate(
-            d3_feat,
-            size=end_fuse1.shape[-2:],
-            mode='bilinear',
-            align_corners=False
-        )  # -> 256
-
-        # 关键改动：
-        # 把原本被丢弃的 d3_up 注入 end_fuse1，
-        # 不改变 fusion_conv 的输入通道数。
-        end_fuse1_refined = end_fuse1 + d3_up  # 256
-
-        d2_in_up = F.interpolate(
-            d2_in,
-            size=end_fuse1_refined.shape[-2:],
-            mode='bilinear',
-            align_corners=False
-        )  # -> 512
-
-        end_fuse = self.fusion_conv(
-            torch.cat([d2_in_up, end_fuse1_refined], dim=1)
-        )  # 512 + 256 = 768 -> 256
-
-        return end_fuse, end_fuse1_refined
-
-
 class SELayer(nn.Module):
     def __init__(self, channel, reduction=16):
         super(SELayer, self).__init__()
@@ -375,3 +279,66 @@ class SELayer(nn.Module):
         y = self.avg_pool(x).view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
         return x * y.expand_as(x)
+
+
+class UCBlock(nn.Module):
+    def __init__(self, in_channels, out_channels=256):
+        super(UCBlock, self).__init__()
+        self.conv = nn.Sequential(
+            # 1x1 降维瓶颈
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            # 3x3 特征融合
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, left_feat, top_feat):
+        if top_feat.shape[2:] != left_feat.shape[2:]:
+            top_feat = F.interpolate(top_feat, size=left_feat.shape[2:], mode='bilinear', align_corners=False)
+        out = torch.cat([left_feat, top_feat], dim=1)
+        return self.conv(out)
+
+
+class IterativeDecoder(nn.Module):
+    def __init__(self):
+        super(IterativeDecoder, self).__init__()
+
+        c_i1, c_i2, c_i3, c_i4 = 128, 256, 640, 1024
+        out_dim = 256
+
+        # 左侧 3个 UC 模块
+        self.uc1 = UCBlock(c_i1 + c_i2, out_dim)  # I1 + I2
+        self.uc2 = UCBlock(c_i1 + c_i3, out_dim)  # I1 + I3
+        self.uc3 = UCBlock(c_i1 + c_i4, out_dim)  # I1 + I4
+
+        # 通道注意力模块
+        self.channel_att = SELayer(out_dim)
+
+        # 右侧 3个 UC 模块
+        self.uc4 = UCBlock(out_dim + c_i1, out_dim)  # Left: uc1 输出, Top: I1
+        self.uc5 = UCBlock(out_dim + out_dim, out_dim)  # Left: uc2 输出, Top: uc4 输出
+        self.uc6 = UCBlock(out_dim + out_dim, out_dim)  # Left: mult_out, Top: uc5 输出
+
+    def forward(self, f1, f2, f3, f4):
+        i1 = f4  # 128
+        i2 = f3  # 256
+        i3 = f2  # 640
+        i4 = f1  # 1024
+
+        # === 左侧并行融合 ===
+        uc1_out = self.uc1(i1, i2)
+        uc2_out = self.uc2(i1, i3)
+        uc3_out = self.uc3(i1, i4)
+
+        # === 通道注意力 ===
+        mult_out = self.channel_att(uc3_out)
+
+        # === 右侧级联融合 ===
+        uc4_out = self.uc4(uc1_out, i1)
+        uc5_out = self.uc5(uc2_out, uc4_out)
+        uc6_out = self.uc6(mult_out, uc5_out)
+
+        return uc6_out, uc5_out
